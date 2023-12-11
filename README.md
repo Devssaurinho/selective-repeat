@@ -34,9 +34,9 @@ Upon execution/simulation, the code provides the following statistics:
 The code is designed to allow the transmission of multiple messages between the client and server. The number of messages can be configured as a command-line argument for the client.
 
 ```bash
-python3 server.py 5000
+python server.py 5000
 ```
 ```bash
-python3 client.py localhost 5000
+python client.py localhost 5000
 ```
 ---
