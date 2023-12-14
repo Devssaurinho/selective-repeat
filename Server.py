@@ -32,10 +32,13 @@ if __name__ == '__main__':
             rep_msg_S = upperCase(msg_S)
             print('Serer: converted %s \nto %s\n' % (msg_S, rep_msg_S))
             rdt.rdt_3_0_send(rep_msg_S)
+
     except (KeyboardInterrupt, SystemExit):
         print("Ending connection...")
+
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
         print("Ending connection...")
+        
     finally:
         rdt.disconnect()
         print("Connection ended.")

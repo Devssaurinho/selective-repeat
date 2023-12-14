@@ -182,7 +182,6 @@ if __name__ == '__main__':
         print(rdt.rdt_3_0_receive())
         rdt.disconnect()
 
-
     else:
         sleep(1)
         print(rdt.rdt_3_0_receive())

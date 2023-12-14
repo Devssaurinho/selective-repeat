@@ -37,10 +37,13 @@ if __name__ == '__main__':
             # print the result
             if msg_S:
                 print('Client: Received the converted frase to: ' + msg_S + '\n')
+                
     except (KeyboardInterrupt, SystemExit):
         print("Ending connection...")
+
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
         print("Ending connection...")
+        
     finally:
         rdt.disconnect()
         print("Connection ended.")
