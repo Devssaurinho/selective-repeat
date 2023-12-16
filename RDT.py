@@ -106,19 +106,25 @@ class Packet:
 
     def get_ack(self):
         # when ACK is sent, it is formated as ACK.XX, XX = seq_num
-        if "ACK" in self.msg:
-            return int(self.msg[3:])
+        if "ACK" == self.msg:
+            return self.seq_num
         
         return -1
 
 
 class RDT:
-    # latest sequence number used in a packet
-    seq_num = 0
-    # buffer of bytes read from network
-    byte_buffer = ''
-    timeout = 3
+    # parameters of the protocol
     window_len = 4
+    timeout = 3
+
+    # latest sequence number used in a packet [0 to 7]
+    seq_num = 0
+    
+    # sequence number of the last not acknowledge packet
+    base = 0
+
+    # buffer of bytes read from network
+    buffer = [""] * window_len
     
     def __init__(self, role_str, server_str, port):
         self.network = Network.NetworkLayer(role_str, server_str, port)
@@ -126,11 +132,15 @@ class RDT:
     def disconnect(self):
         self.network.disconnect()
 
-    def rdt_3_0_send(self, msg):
+    def rdt_4_0_send(self, msg):
         
         cur_seq = self.seq_num
         p = Packet(cur_seq, msg)
 
+        while cur_seq == self.seq_num:
+            
+
+        
 
 
     def rdt_3_0_receive(self):
