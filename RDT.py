@@ -103,7 +103,7 @@ class Packet:
         # split packet into its components
         return size_str, seq_num_str, checksum, msg
     
-    
+
     def get_ack(self):
         # when ACK is sent, it is formated as ACK.XX, XX = seq_num
         if "ACK" in self.msg:
@@ -118,15 +118,20 @@ class RDT:
     # buffer of bytes read from network
     byte_buffer = ''
     timeout = 3
-
-    def __init__(self, role_S, server_S, port):
-        self.network = Network.NetworkLayer(role_S, server_S, port)
+    window_len = 4
+    
+    def __init__(self, role_str, server_str, port):
+        self.network = Network.NetworkLayer(role_str, server_str, port)
 
     def disconnect(self):
         self.network.disconnect()
 
-    def rdt_3_0_send(self, msg_S):
-        pass
+    def rdt_3_0_send(self, msg):
+        
+        cur_seq = self.seq_num
+        p = Packet(cur_seq, msg)
+
+
 
     def rdt_3_0_receive(self):
         pass
