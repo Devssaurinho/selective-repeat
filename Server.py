@@ -13,25 +13,28 @@ if __name__ == '__main__':
     parser.add_argument('port', help='Port.', type=int)
     args = parser.parse_args()
 
-    timeout = 1000  # close connection if no new data within 5 seconds
+    timeout = 1000
     time_of_last_data = time.time()
 
     rdt = RDT.RDT('server', None, args.port)
     try:
         while True:
-            # try to receiver message before timeout
-            msg_S = rdt.rdt_3_0_receive()
-            if msg_S is None:
-                if time_of_last_data + timeout < time.time():
-                    break
-                else:
-                    continue
-            time_of_last_data = time.time()
+            
+            msg = rdt.rdt_4_0_receive()
 
-            # convert and reply
-            rep_msg_S = upperCase(msg_S)
-            print('Serer: converted %s \nto %s\n' % (msg_S, rep_msg_S))
-            rdt.rdt_3_0_send(rep_msg_S)
+            if (msg == None):
+
+                # timeout event
+                if (time_of_last_data + timeout < time.time()):
+                    break
+
+                continue
+
+            # received a message
+            time_of_last_data = time.time()
+            reply = upperCase(msg)
+            print(f'Server: converted{msg} to {reply}')
+            rdt.rdt_4_0_send(reply)
 
     except (KeyboardInterrupt, SystemExit):
         print("Ending connection...")

@@ -13,31 +13,41 @@ if __name__ == '__main__':
     	'The good news about computers is that they do what you tell them to do. The bad news is that they do what you tell them to do. -- Ted Nelson', 
     	'It is hardware that makes a machine fast. It is software that makes a fast machine slow. -- Craig Bruce',
         'The art of debugging is figuring out what you really told your program to do rather than what you thought you told it to do. -- Andrew Singer',
-        'The computer was born to solve problems that did not exist before. - Bill Gates']
+        'The computer was born to solve problems that did not exist before. - Bill Gates',
+        'teste6',
+        'teste7',
+        'teste8',
+        'teste9',
+        'teste10',
+        'teste11',
+        'teste12',
+        'teste13',
+        'teste14',
+        'teste15',
+        ]
 
-    timeout = 1000  # send the next message if not response
-    time_of_last_data = time.time()
     rdt = RDT.RDT('client', args.server, args.port)
 
     try:
+        # Send all messages
         for msg in msgs:
-            print('Client asking to change case: ' + msg)
-            rdt.rdt_3_0_send(msg)
+            print('Client asking to change case: \n\t' + msg)
+            
+            # rdt_send can refuse data, return False
+            # so, until the msg was sent, it will be locked in a loop
+            while(not rdt.rdt_4_0_send(msg)):
+                pass
+            
 
-            # try to receive message before timeout
+        # Receive all messages
+        for i in range(len(msgs)):
             msg = None
+
             while msg == None:
-                msg = rdt.rdt_3_0_receive()
-                if msg is None:
-                    if time_of_last_data + timeout < time.time():
-                        break
-                    else:
-                        continue
-            time_of_last_data = time.time()
+                msg = rdt.rdt_4_0_receive()
 
             # print the result
-            if msg:
-                print('Client: Received the converted frase to: ' + msg + '\n')
+            print('Client: Received the converted frase to: ' + msg + '\n')
                 
     except (KeyboardInterrupt, SystemExit):
         print("Ending connection...")
