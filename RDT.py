@@ -121,7 +121,6 @@ class Packet:
         return -1
 
 
-# for the sender
 class RDT:
     # parameters of the protocol
     window_len = 4
@@ -129,8 +128,7 @@ class RDT:
     timeout = 3
     
     def __init__(self, role_str, server_str, port):
-        # self.network = Network.NetworkLayer(role_str, server_str, port)
-        pass
+        self.network = Network.NetworkLayer(role_str, server_str, port)
     
     def disconnect(self):
         self.network.disconnect()
@@ -150,7 +148,7 @@ class RDT:
 
         while(True):
             
-            # stop condition: no more packet to send
+            # stop condition: no more packets to send
             if (len(queue) == 0 and len(window) == 0):
                 break
 
@@ -165,8 +163,7 @@ class RDT:
                 nxt = (nxt + 1) % self.modulo
 
                 # send it!
-                # self.network.udt_send(p.packet)
-                print(p.packet)
+                self.network.udt_send(p.packet)
 
             # Check for timeouts
             for seq in window.keys():
@@ -175,20 +172,13 @@ class RDT:
                 if (not wasAck) and (timer + self.timeout < time.time()):
                     # resend packet and update timer
                     window[seq][2] = time.time()
-                    # self.network.udt_send(p.packet)
-                    print(p.packet)
+                    self.network.udt_send(p.packet)
 
             # Check for received ack packet
             received = None
             start_timer = time.time()
             while (received == None and (time.time() < (start_timer + self.timeout))):
-                # received = self.network.udt_receive()
-                received = input()
-                if ("ACK" in received):
-                    num = received[3]
-                    p = Packet()
-                    p.code(num, "ACK")
-                    received = p.packet
+                received = self.network.udt_receive()
 
             if (received):
                 p = Packet()
@@ -222,7 +212,7 @@ class RDT:
         # window only supports idx in the range [base, base+N-1]
         window = {}
 
-        receive_timeout_limit = 1800
+        receive_timeout_limit = 180
         total_timer = time.time()
 
         while(True):
@@ -235,12 +225,7 @@ class RDT:
             received = None
             start_timer = time.time()
             while (received == None and (time.time() < (start_timer + self.timeout))):
-                # received = self.network.udt_receive()
-                received = input()
-                if (received == "END"):
-                    p = Packet()
-                    p.code(3, "END")
-                    received = p.packet
+                received = self.network.udt_receive()
 
             if (received):
                 p = Packet()
@@ -253,14 +238,12 @@ class RDT:
                     if num in behind:
                         a = Packet()
                         a.code(num, "ACK")
-                        # self.network.udt_send(a.packet)
-                        print(a.packet)
+                        self.network.udt_send(a.packet)
                     
                     elif num in window_range:
                         a = Packet()
                         a.code(num, "ACK")
-                        # self.network.udt_send(a.packet)
-                        print(a.packet)
+                        self.network.udt_send(a.packet)
 
                         # buffer packet
                         window[num] = p

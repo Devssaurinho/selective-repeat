@@ -18,28 +18,19 @@ if __name__ == '__main__':
 
     rdt = RDT.RDT('server', None, args.port)
     try:
-        while True:
-            
-            msg = rdt.rdt_4_0_receive()
+        msgs = rdt.rdt_4_0_receive()
 
-            if (msg == None):
-
-                # timeout event
-                if (time_of_last_data + timeout < time.time()):
-                    break
-
-                continue
-
-            # received a message
-            time_of_last_data = time.time()
-            reply = upperCase(msg)
-            print(f'Server: converted{msg} to {reply}')
-            rdt.rdt_4_0_send(reply)
+        reply = [upperCase(msg) for msg in msgs]
+        reply.append("END")
+        
+        rdt.rdt_4_0_send(reply)
 
     except (KeyboardInterrupt, SystemExit):
+        rdt.disconnect()
         print("Ending connection...")
 
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        rdt.disconnect()
         print("Ending connection...")
         
     finally:
