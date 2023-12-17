@@ -9,9 +9,9 @@ import RDT
 ## Provides an abstraction for the network layer
 class NetworkLayer:
     # configuration parameters
-    prob_pkt_loss = 0
-    prob_byte_corr = 0.1
-    prob_pkt_reorder = 0
+    prob_pkt_loss = 0.2
+    prob_byte_corr = 0.2
+    prob_pkt_reorder = 0.2
 
     # class variables
     sock = None
@@ -65,7 +65,8 @@ class NetworkLayer:
             repl_S = ''.join(random.sample('XXXXX', num))  # sample length >= num
             msg_S = msg_S[:start] + repl_S + msg_S[start + num:]
             
-        # reorder packets - either hold a packet back, or if one held back then send both
+        # reorder packets - either hold a packet back, 
+        # or if there is one already held back, then, send both
         if random.random() < self.prob_pkt_reorder or self.reorder_msg_S:
             if self.reorder_msg_S is None:
                 self.reorder_msg_S = msg_S
