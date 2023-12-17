@@ -211,7 +211,12 @@ class RDT:
                 
                 while (len(buffer) >= Packet.size_len):
 
-                    length = int(buffer[0:Packet.size_len])
+                    # length attribute may be corrupted
+                    try:
+                        length = int(buffer[0:Packet.size_len])
+                    except:
+                        debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+                        continue
 
                     if (len(buffer) >= length):
 
@@ -234,6 +239,9 @@ class RDT:
                                         window.pop(idx)
                                         idx = (idx + 1) % self.modulo
                                     base = idx
+                        else:
+                            debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+
                     else:
                         break
 
@@ -286,7 +294,12 @@ class RDT:
                 
                 while (len(buffer) >= Packet.size_len):
 
-                    length = int(buffer[0:Packet.size_len])
+                    # length attribute may be corrupted
+                    try:
+                        length = int(buffer[0:Packet.size_len])
+                    except:
+                        debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+                        continue
 
                     if (len(buffer) >= length):
 
@@ -337,6 +350,9 @@ class RDT:
                                         idx = (idx + 1) % self.modulo
 
                                     base = idx
+
+                        else:
+                            debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
         
         return msgs
 
