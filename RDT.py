@@ -1,7 +1,6 @@
 import Network
 import argparse
 import time
-from time import sleep
 import hashlib
 
 debug = True    
@@ -12,6 +11,11 @@ def debug_log(message):
     if debug:
         print(message)
 
+def format_time(val):
+    f_time = time.strftime("%d-%m-%Y %H:%M:%S", time.gmtime(val/1000000000 - 3*60*60))
+    ms = (val//1000000) % 1000
+    f_time += f".{ms:3d}" 
+    return f_time
 
 class Packet:
     # packet = [size, seq_num, checksum, data ]
@@ -146,10 +150,12 @@ class RDT:
         # window = {idx : [wasACK?, packet, timer] }
         window = {}
 
+        debug_log(f"Started sending packets at {format_time(time.time_ns())}\n")
         while(True):
             
             # stop condition: no more packets to send
             if (len(queue) == 0 and len(window) == 0):
+                debug_log(f"Sent all packets, terminating at {format_time(time.time_ns())}\n")
                 break
 
             # Data received from above and inside window boundary
@@ -160,6 +166,7 @@ class RDT:
                 p = Packet()
                 p.code(nxt, msg)
                 window[nxt] = [False, p, time.time()]
+                debug_log(f"First time: Sending packet {nxt}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                 nxt = (nxt + 1) % self.modulo
 
                 # send it!
@@ -171,6 +178,7 @@ class RDT:
 
                 if (not wasAck) and (timer + self.timeout < time.time()):
                     # resend packet and update timer
+                    debug_log(f"Timeout: Resend packet {seq}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                     window[seq][2] = time.time()
                     self.network.udt_send(p.packet)
 
@@ -181,20 +189,27 @@ class RDT:
                 received = self.network.udt_receive()
 
             if (received):
-                p = Packet()
-                if (not p.corrupt(received)):
-                    p.decode(received)
-                    ack_num = p.get_ack()
-                    if (ack_num != -1 and ack_num in window):
-                        window[ack_num][0] = True
 
-                        # slide window
-                        if (ack_num == base):
-                            idx = base
-                            while(idx in window and window[idx][0]):
-                                window.pop(idx)
-                                idx = (idx + 1) % self.modulo
-                            base = idx
+                if (len(received) >= Packet.size_len):
+                    length = int(received[0:Packet.size_len])
+                    if (len(received) >= length):
+                        received = received[0:length]
+
+                        p = Packet()
+                        if (not p.corrupt(received)):
+                            p.decode(received)
+                            ack_num = p.get_ack()
+                            debug_log(f"Received: non corrupt packet {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                            if (ack_num != -1 and ack_num in window):
+                                window[ack_num][0] = True
+
+                                # slide window
+                                if (ack_num == base):
+                                    idx = base
+                                    while(idx in window and window[idx][0]):
+                                        window.pop(idx)
+                                        idx = (idx + 1) % self.modulo
+                                    base = idx
 
     def rdt_4_0_receive(self):
 
@@ -212,13 +227,15 @@ class RDT:
         # window only supports idx in the range [base, base+N-1]
         window = {}
 
-        receive_timeout_limit = 180
+        receive_timeout_limit = 1800
         total_timer = time.time()
 
+        debug_log(f"Started receiving packets at {format_time(time.time_ns())}\n")
         while(True):
 
             # stop condition
             if (total_timer + receive_timeout_limit < time.time()):
+                debug_log(f"Time limit: Stopped receiving packets at {format_time(time.time_ns())}\n")
                 break
             
             # check for received packet
@@ -228,51 +245,59 @@ class RDT:
                 received = self.network.udt_receive()
 
             if (received):
-                p = Packet()
-                if (not p.corrupt(received)):
-                    p.decode(received)
-                    num = p.seq_num
 
-                    # already received packet, but sender might be behind
-                    # just send ack, don't buffer it
-                    if num in behind:
-                        a = Packet()
-                        a.code(num, "ACK")
-                        self.network.udt_send(a.packet)
-                    
-                    elif num in window_range:
-                        a = Packet()
-                        a.code(num, "ACK")
-                        self.network.udt_send(a.packet)
-
-                        # buffer packet
-                        window[num] = p
-
-                        # slide window
-                        if (num == base):
-                            idx = base
-                            while(idx in window):
-
-                                # 2nd stop condition -> triggered by sender
-                                if (window[idx].msg == "END"):
-                                    return msgs
+                if (len(received) >= Packet.size_len):
+                    length = int(received[0:Packet.size_len])
+                    if (len(received) >= length):
+                        received = received[0:length]
                                 
-                                msgs.append(window[idx].msg)
-                                window.pop(idx)
+                        p = Packet()
+                        if (not p.corrupt(received)):
+                            p.decode(received)
+                            num = p.seq_num
+                            debug_log(f"Received: Reading packet {num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
 
-                                # update ranges
-                                behind.remove((idx-self.window_len+self.modulo) % self.modulo)
-                                behind.add(idx)
-                                window_range.remove(idx)
-                                window_range.add((idx+self.window_len) % self.modulo)
+                            # already received packet, but sender might be behind
+                            # just send ack, don't buffer it
+                            if num in behind:
+                                a = Packet()
+                                a.code(num, "ACK")
+                                debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
+                                self.network.udt_send(a.packet)
+                            
+                            elif num in window_range:
+                                a = Packet()
+                                a.code(num, "ACK")
+                                debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
+                                self.network.udt_send(a.packet)
 
-                                idx = (idx + 1) % self.modulo
+                                # buffer packet
+                                window[num] = p
 
-                            base = idx
+                                # slide window
+                                if (num == base):
+                                    idx = base
+                                    while(idx in window):
+
+                                        # 2nd stop condition -> triggered by sender
+                                        if (window[idx].msg == "END"):
+                                            debug_log(f"END Command: Stopped receiving packets at {format_time(time.time_ns())}\n")
+                                            return msgs
+                                        
+                                        msgs.append(window[idx].msg)
+                                        window.pop(idx)
+
+                                        # update ranges
+                                        behind.remove((idx-self.window_len+self.modulo) % self.modulo)
+                                        behind.add(idx)
+                                        window_range.remove(idx)
+                                        window_range.add((idx+self.window_len) % self.modulo)
+
+                                        idx = (idx + 1) % self.modulo
+
+                                    base = idx
         
         return msgs
-                            
-
 
 
 if __name__ == '__main__':
