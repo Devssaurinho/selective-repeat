@@ -6,6 +6,8 @@ import hashlib
 
 debug = True    
 # default = False
+total_package_length = 0
+total_package_count = 0
 
 
 def debug_log(message):
@@ -23,9 +25,18 @@ class Packet:
     checksum_length = 32
 
     def __init__(self, seq_num, msg_S, ack_flag=False):
+        global total_package_length
+        global total_package_count
         self.seq_num = seq_num
         self.msg_S = msg_S
         self.ack_flag = ack_flag
+        total_package_length += (
+            len(msg_S)
+            + Packet.seq_num_S_length
+            + Packet.checksum_length
+            + Packet.length_S_length
+        )
+        total_package_count +=1
 
     @classmethod
     def from_byte_S(cls, byte_S):

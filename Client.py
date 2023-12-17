@@ -2,7 +2,10 @@ import argparse
 import RDT
 import time
 
+from code_statistics import throughput
+
 if __name__ == '__main__':
+    start = time.time()
     parser = argparse.ArgumentParser(description='Quotation client talking to a Pig Latin server.')
     parser.add_argument('server', help='Server.')
     parser.add_argument('port', help='Port.', type=int)
@@ -44,3 +47,8 @@ if __name__ == '__main__':
     finally:
         rdt.disconnect()
         print("Connection ended.")
+        end = time.time()
+        tempo_transferencia = end - start
+        throughput(rdt.total_packet_length, tempo_transferencia)
+        print(f"Número total de pacotes: {rdt.total_package_count}")
+        # print(f"Numero de pacotes corrompidos: {rdt.total_corrupted_packages}")
