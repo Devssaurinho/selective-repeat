@@ -18,7 +18,7 @@ def format_time(val):
     return f_time
 
 class Packet:
-    # packet = [size, seq_num, checksum, data ]
+    # packet = [size, seq_num, ackFlag, checksum, data]
 
     # the number of bytes(chars) used to store the size of the packet
     size_len = 8
@@ -34,6 +34,8 @@ class Packet:
     size_str = None
     seq_num = None
     seq_num_str = None
+    ack = None
+    ack_str = None
     checksum = None
     msg = None
     packet = None
@@ -44,25 +46,29 @@ class Packet:
         self.seq_num_len = seq_num_len
         self.checksum_len = checksum_len
 
-
-    def code(self, seq_num, msg):
+    # create packet from augments
+    def code(self, seq_num, msg, is_ack=0):
 
         # create size (int and str)
-        self.size = self.size_len + self.seq_num_len + self.checksum_len + len(msg)
+        self.size = self.size_len + self.seq_num_len + self.checksum_len + 1 + len(msg)
         self.size_str = str(self.size).zfill(self.size_len)
 
         # create seq_num (int and str)
         self.seq_num = seq_num
         self.seq_num_str = str(seq_num).zfill(self.seq_num_len)
 
+        # save ack (0 or 1 bool)
+        self.ack = is_ack
+        self.ack_str = str(self.ack)
+
         # compute the checksum (str)
-        self.checksum = hashlib.md5((self.size_str + self.seq_num_str + msg).encode('utf-8')).hexdigest()
+        self.checksum = hashlib.md5((self.size_str + self.seq_num_str + self.ack_str + msg).encode('utf-8')).hexdigest()
 
         # save message (str)
         self.msg = msg
 
         # compile into a string
-        self.packet = self.size_str + self.seq_num_str + self.checksum + self.msg
+        self.packet = self.size_str + self.seq_num_str + self.ack_str + self.checksum + self.msg
 
         return self.packet
     
@@ -70,23 +76,24 @@ class Packet:
     def split(self, packet):
 
         # split packet into respective variables
-        limits = [self.size_len, self.size_len+self.seq_num_len, self.size_len+self.seq_num_len+self.checksum_len]
+        limits = [self.size_len, self.size_len+self.seq_num_len, self.size_len+self.seq_num_len+1, self.size_len+self.seq_num_len+self.checksum_len+1]
         
         size_str = packet[0 : limits[0]]
         seq_num_str = packet[limits[0] : limits[1]]
-        checksum = packet[limits[1] : limits[2]]
-        msg = packet[limits[2] : ]
+        ack_str = packet[limits[1] : limits[2]]
+        checksum = packet[limits[2] : limits[3]]
+        msg = packet[limits[3] : ]
 
-        return size_str, seq_num_str, checksum, msg
+        return size_str, seq_num_str, checksum, ack_str, msg
 
 
     def corrupt(self, packet):
 
         # extract the fields
-        size_str, seq_num_str, checksum, msg = self.split(packet)
-
+        size_str, seq_num_str, checksum, ack_str, msg = self.split(packet)
+ 
         # compute the checksum locally
-        computed = hashlib.md5(str(size_str + seq_num_str + msg).encode('utf-8')).hexdigest()
+        computed = hashlib.md5(str(size_str + seq_num_str + ack_str + msg).encode('utf-8')).hexdigest()
 
         # and check if they are the same
         return checksum != computed
@@ -98,7 +105,7 @@ class Packet:
             raise RuntimeError('Cannot extract packet: it is corrupted')
 
         # extract the fields
-        size_str, seq_num_str, checksum, msg = self.split(packet)
+        size_str, seq_num_str, checksum, ack_str, msg = self.split(packet)
         
         # save into object variables
         self.size = int(size_str)
@@ -107,19 +114,21 @@ class Packet:
         self.seq_num = int(seq_num_str)
         self.seq_num_str = seq_num_str
 
-        self.checksum = checksum
+        self.ack_str = ack_str
+        self.ack = int(ack_str)
 
+        self.checksum = checksum
+        
         self.msg = msg
 
         self.packet = packet
 
         # split packet into its components
-        return size_str, seq_num_str, checksum, msg
+        return size_str, seq_num_str, checksum, ack_str, msg
     
 
     def get_ack(self):
-        # when ACK is sent, it is formated as ACK.XX, XX = seq_num
-        if "ACK" == self.msg:
+        if self.ack:
             return self.seq_num
         
         return -1
@@ -179,7 +188,7 @@ class RDT:
                 # create a packet, buffer it into window
                 msg = queue.pop(0)
                 p = Packet()
-                p.code(nxt, msg)
+                p.code(nxt, msg, 0)
                 window[nxt] = [False, p, time.time()]
                 debug_log(f"First time: Sending packet {nxt}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                 nxt = (nxt + 1) % self.modulo
@@ -228,7 +237,7 @@ class RDT:
                         if (not p.corrupt(received)):
                             p.decode(received)
                             ack_num = p.get_ack()
-                            debug_log(f"Received: Reading non corrupted packet {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                            debug_log(f"Received ACK: Reading non corrupted ACK {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                             if (ack_num != -1 and ack_num in window):
                                 window[ack_num][0] = True
 
@@ -317,7 +326,7 @@ class RDT:
                             # just send ack, don't buffer it
                             if num in behind:
                                 a = Packet()
-                                a.code(num, "ACK")
+                                a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
                             
@@ -325,7 +334,7 @@ class RDT:
                             # send ack and buffer it
                             elif num in window_range:
                                 a = Packet()
-                                a.code(num, "ACK")
+                                a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
 

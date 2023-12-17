@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
         # print the result
         for msg in msgs:
-            print(f'Client: Received the converted frase {msg}')
+            print(f'Client: Received the converted sentence {msg}')
                 
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
