@@ -13,8 +13,8 @@ def debug_log(message):
 
 def format_time(val):
     f_time = time.strftime("%d-%m-%Y %H:%M:%S", time.gmtime(val/1000000000 - 3*60*60))
-    ms = (val//1000000) % 1000
-    f_time += f".{ms:3d}" 
+    us = (val//1000) % 1000000
+    f_time += f".{us:3d} us" #microsseconds
     return f_time
 
 class Packet:
@@ -129,7 +129,13 @@ class RDT:
     # parameters of the protocol
     window_len = 4
     modulo = window_len*2
-    timeout = 3
+
+    # packet timeout, maybe 3s is better, but system is already very fast
+    timeout = 2
+
+    # connection timeout:
+    # if, for 5 seconds duration, receiver doesn't receive any packets, terminate connection
+    connection_timeout = 5 
     
     def __init__(self, role_str, server_str, port):
         self.network = Network.NetworkLayer(role_str, server_str, port)
@@ -150,18 +156,27 @@ class RDT:
         # window = {idx : [wasACK?, packet, timer] }
         window = {}
 
-        debug_log(f"Started sending packets at {format_time(time.time_ns())}\n")
+        debug_log("--------------------------------------------------")
+        debug_log(f"Started sending packets at {format_time(time.time_ns())}")
+        debug_log("--------------------------------------------------\n")
+
         while(True):
             
             # stop condition: no more packets to send
             if (len(queue) == 0 and len(window) == 0):
-                debug_log(f"Sent all packets, terminating at {format_time(time.time_ns())}\n")
+
+                # sleep for {connection_timeout} seconds to sync with receiver, so receiver can timeout
+                time.sleep(self.connection_timeout)
+
+                debug_log("##################################################")
+                debug_log(f"Sent all packets, terminating at {format_time(time.time_ns())}")
+                debug_log("##################################################\n")
                 break
 
             # Data received from above and inside window boundary
             if (len(queue) > 0 and len(window) < self.window_len):
-
-                # create packet, buffer it into window
+                
+                # create a packet, buffer it into window
                 msg = queue.pop(0)
                 p = Packet()
                 p.code(nxt, msg)
@@ -182,24 +197,33 @@ class RDT:
                     window[seq][2] = time.time()
                     self.network.udt_send(p.packet)
 
-            # Check for received ack packet
+            # Check for received ACK packet
             received = None
             start_timer = time.time()
-            while (received == None and (time.time() < (start_timer + self.timeout))):
+            # try to read an packet from network for {self.timeout}/2 seconds
+            while (received == None and (time.time() < (start_timer + self.timeout/2))):
                 received = self.network.udt_receive()
 
             if (received):
+                
+                # buffer content read from network, it can contain more than 1 packet
+                buffer = received
+                
+                while (len(buffer) >= Packet.size_len):
 
-                if (len(received) >= Packet.size_len):
-                    length = int(received[0:Packet.size_len])
-                    if (len(received) >= length):
-                        received = received[0:length]
+                    length = int(buffer[0:Packet.size_len])
+
+                    if (len(buffer) >= length):
+
+                        # extract first packet, leave the rest at the buffer
+                        received = buffer[0:length]
+                        buffer = buffer[length:]
 
                         p = Packet()
                         if (not p.corrupt(received)):
                             p.decode(received)
                             ack_num = p.get_ack()
-                            debug_log(f"Received: non corrupt packet {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                            debug_log(f"Received: Reading non corrupted packet {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                             if (ack_num != -1 and ack_num in window):
                                 window[ack_num][0] = True
 
@@ -210,9 +234,12 @@ class RDT:
                                         window.pop(idx)
                                         idx = (idx + 1) % self.modulo
                                     base = idx
+                    else:
+                        break
 
     def rdt_4_0_receive(self):
 
+        # buffer that will be sent to the next layer
         msgs = []
         
         # sequence number of the last not acknowledge packet inside window
@@ -227,35 +254,51 @@ class RDT:
         # window only supports idx in the range [base, base+N-1]
         window = {}
 
-        receive_timeout_limit = 1800
-        total_timer = time.time()
+        last_timer = time.time()
 
-        debug_log(f"Started receiving packets at {format_time(time.time_ns())}\n")
+        debug_log("--------------------------------------------------")
+        debug_log(f"Started receiving packets at {format_time(time.time_ns())}")
+        debug_log("--------------------------------------------------\n")
+
         while(True):
 
-            # stop condition
-            if (total_timer + receive_timeout_limit < time.time()):
-                debug_log(f"Time limit: Stopped receiving packets at {format_time(time.time_ns())}\n")
+            # stop condition: no packets received for at least {connection_timeout} => timeout
+            if (last_timer + self.connection_timeout < time.time()):
+                debug_log("##################################################")
+                debug_log(f"Time limit: Stopped receiving packets at {format_time(time.time_ns())}")
+                debug_log("##################################################\n")
                 break
             
             # check for received packet
             received = None
             start_timer = time.time()
-            while (received == None and (time.time() < (start_timer + self.timeout))):
+            # try to read an packet from network for {self.timeout}/2 seconds
+            while (received == None and (time.time() < (start_timer + self.timeout/2))):
                 received = self.network.udt_receive()
 
             if (received):
+                
+                # received a packet, update last time 
+                last_timer = time.time()
 
-                if (len(received) >= Packet.size_len):
-                    length = int(received[0:Packet.size_len])
-                    if (len(received) >= length):
-                        received = received[0:length]
+                # buffer content read from network, it can contain more than 1 packet
+                buffer = received
+                
+                while (len(buffer) >= Packet.size_len):
+
+                    length = int(buffer[0:Packet.size_len])
+
+                    if (len(buffer) >= length):
+
+                        # extract first packet, leave the rest at the buffer
+                        received = buffer[0:length]
+                        buffer = buffer[length:]
                                 
                         p = Packet()
                         if (not p.corrupt(received)):
                             p.decode(received)
                             num = p.seq_num
-                            debug_log(f"Received: Reading packet {num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                            debug_log(f"Received: Reading non corrupted packet {num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
 
                             # already received packet, but sender might be behind
                             # just send ack, don't buffer it
@@ -265,6 +308,8 @@ class RDT:
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
                             
+                            # packed inside window range
+                            # send ack and buffer it
                             elif num in window_range:
                                 a = Packet()
                                 a.code(num, "ACK")
@@ -279,12 +324,8 @@ class RDT:
                                     idx = base
                                     while(idx in window):
 
-                                        # 2nd stop condition -> triggered by sender
-                                        if (window[idx].msg == "END"):
-                                            debug_log(f"END Command: Stopped receiving packets at {format_time(time.time_ns())}\n")
-                                            return msgs
-                                        
-                                        msgs.append(window[idx].msg)
+                                        if (window[idx].msg != "FIN"):
+                                            msgs.append(window[idx].msg)
                                         window.pop(idx)
 
                                         # update ranges

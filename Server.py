@@ -17,12 +17,11 @@ if __name__ == '__main__':
     time_of_last_data = time.time()
 
     rdt = RDT.RDT('server', None, args.port)
-    
+
     try:
         msgs = rdt.rdt_4_0_receive()
 
         reply = [upperCase(msg) for msg in msgs]
-        reply.append("END")
         
         rdt.rdt_4_0_send(reply)
 

@@ -20,7 +20,16 @@ if __name__ == '__main__':
         'teste8',
         'teste9',
         'teste10',
-        'END'
+        # 'teste11',
+        # 'teste12',
+        # 'teste13',
+        # 'teste14',
+        # 'teste15',
+        # 'teste16',
+        # 'teste17',
+        # 'teste18',
+        # 'teste19',
+        # 'teste20',
         ]
 
     rdt = RDT.RDT('client', args.server, args.port)
