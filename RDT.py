@@ -125,7 +125,7 @@ class Packet:
 class RDT:
     # parameters of the protocol
     window_len = 4
-    modulo = 8
+    modulo = window_len*2
     timeout = 3
     
     def __init__(self, role_str, server_str, port):
@@ -138,6 +138,7 @@ class RDT:
     def rdt_4_0_send(self, msgs):
 
         queue = list(msgs)
+
         # next sequence number [0 to 7] to be sent
         nxt = 0
         
@@ -179,8 +180,8 @@ class RDT:
 
             # Check for received ack packet
             received = None
-            wait_time = time.time()
-            while (received == None and (time.time() < (wait_time + self.timeout))):
+            start_timer = time.time()
+            while (received == None and (time.time() < (start_timer + self.timeout))):
                 # received = self.network.udt_receive()
                 received = input()
                 if ("ACK" in received):
@@ -189,7 +190,7 @@ class RDT:
                     p.code(num, "ACK")
                     received = p.packet
 
-            if (received != None):
+            if (received):
                 p = Packet()
                 if (not p.corrupt(received)):
                     p.decode(received)
@@ -197,6 +198,7 @@ class RDT:
                     if (ack_num != -1 and ack_num in window):
                         window[ack_num][0] = True
 
+                        # slide window
                         if (ack_num == base):
                             idx = base
                             while(idx in window and window[idx][0]):
@@ -205,15 +207,110 @@ class RDT:
                             base = idx
 
     def rdt_4_0_receive(self):
-        pass
+
+        msgs = []
+        
+        # sequence number of the last not acknowledge packet inside window
+        base = 0
+
+        # list of indexes in the range = [base-N, base-1] (arithmetic modular)
+        # because the modulo chosen is twice the window's length, behind_window will be complementar to window
+        behind = {4, 5, 6, 7}
+        window_range = {0, 1, 2, 3}
+
+        # window = {idx : packet}
+        # window only supports idx in the range [base, base+N-1]
+        window = {}
+
+        receive_timeout_limit = 1800
+        total_timer = time.time()
+
+        while(True):
+
+            # stop condition
+            if (total_timer + receive_timeout_limit < time.time()):
+                break
+            
+            # check for received packet
+            received = None
+            start_timer = time.time()
+            while (received == None and (time.time() < (start_timer + self.timeout))):
+                # received = self.network.udt_receive()
+                received = input()
+                if (received == "END"):
+                    p = Packet()
+                    p.code(3, "END")
+                    received = p.packet
+
+            if (received):
+                p = Packet()
+                if (not p.corrupt(received)):
+                    p.decode(received)
+                    num = p.seq_num
+
+                    # already received packet, but sender might be behind
+                    # just send ack, don't buffer it
+                    if num in behind:
+                        a = Packet()
+                        a.code(num, "ACK")
+                        # self.network.udt_send(a.packet)
+                        print(a.packet)
+                    
+                    elif num in window_range:
+                        a = Packet()
+                        a.code(num, "ACK")
+                        # self.network.udt_send(a.packet)
+                        print(a.packet)
+
+                        # buffer packet
+                        window[num] = p
+
+                        # slide window
+                        if (num == base):
+                            idx = base
+                            while(idx in window):
+
+                                # 2nd stop condition -> triggered by sender
+                                if (window[idx].msg == "END"):
+                                    return msgs
+                                
+                                msgs.append(window[idx].msg)
+                                window.pop(idx)
+
+                                # update ranges
+                                behind.remove((idx-self.window_len+self.modulo) % self.modulo)
+                                behind.add(idx)
+                                window_range.remove(idx)
+                                window_range.add((idx+self.window_len) % self.modulo)
+
+                                idx = (idx + 1) % self.modulo
+
+                            base = idx
+        
+        return msgs
+                            
+
+
 
 if __name__ == '__main__':
-    msgs = [
-        'teste1',
-        'teste2',
-        'teste3',
-        ]
 
-    rdt = RDT('Client', 'localhost', 5000)
-    rdt.rdt_4_0_send(msgs)
-        
+    # msgs = [
+    #     'teste1',
+    #     'teste2',
+    #     'teste3',
+    #     'teste4',
+    #     'teste5',
+    #     'teste6', 
+    #     'teste7',
+    #     'teste8',
+    #     'teste9',
+    #     ]
+
+    # rdt = RDT('Client', 'localhost', 5000)
+    # rdt.rdt_4_0_send(msgs)
+
+    rdt = RDT('Server', None, 5000)
+
+    msgs = rdt.rdt_4_0_receive()
+
+    print(msgs)
