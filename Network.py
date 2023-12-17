@@ -9,9 +9,9 @@ import RDT
 ## Provides an abstraction for the network layer
 class NetworkLayer:
     # configuration parameters
-    prob_pkt_loss = 0
-    prob_byte_corr = 0
-    prob_pkt_reorder = 0
+    prob_pkt_loss = 0.2
+    prob_byte_corr = 0.2
+    prob_pkt_reorder = 0.2
 
     # class variables
     sock = None
@@ -56,13 +56,17 @@ class NetworkLayer:
         # return without sending if the packet is being dropped
         if random.random() < self.prob_pkt_loss:
             return
-        # corrupt a packet
+        
+        # corrupt a packet 
+        # (insert from 1 to 5 characters 'X' into some random consecutive positions)
         if random.random() < self.prob_byte_corr:
-            start = random.randint(RDT.Packet.length_S_length, len(msg_S) - 5)
+            start = random.randint(RDT.Packet.size_len, len(msg_S) - 5)
             num = random.randint(1, 5)
             repl_S = ''.join(random.sample('XXXXX', num))  # sample length >= num
             msg_S = msg_S[:start] + repl_S + msg_S[start + num:]
-        # reorder packets - either hold a packet back, or if one held back then send both
+            
+        # reorder packets - either hold a packet back, 
+        # or if there is one already held back, then, send both
         if random.random() < self.prob_pkt_reorder or self.reorder_msg_S:
             if self.reorder_msg_S is None:
                 self.reorder_msg_S = msg_S
@@ -122,7 +126,3 @@ if __name__ == '__main__':
         print(network.udt_receive())
         network.udt_send('MSG_FROM_SERVER')
         network.disconnect()
-
-
-
-

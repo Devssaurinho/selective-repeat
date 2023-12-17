@@ -8,39 +8,55 @@ if __name__ == '__main__':
     parser.add_argument('port', help='Port.', type=int)
     args = parser.parse_args()
 
-    msg_L = [
-    	'The art of debugging is figuring out what you really told your program to do rather than what you thought you told it to do. -- Andrew Singer', 
-    	'The good news about computers is that they do what you tell them to do. The bad news is that they do what you tell them to do. -- Ted Nelson', 
-    	'It is hardware that makes a machine fast. It is software that makes a fast machine slow. -- Craig Bruce',
-        'The art of debugging is figuring out what you really told your program to do rather than what you thought you told it to do. -- Andrew Singer',
-        'The computer was born to solve problems that did not exist before. - Bill Gates']
+    msgs = [
+    	'teste0',
+        'teste1',
+        'teste2',
+        'teste3',
+        'teste4',
+        'teste5',
+        'teste6',
+        'teste7',
+        'teste8',
+        'teste9',
+        'teste10',
+        # 'teste11',
+        # 'teste12',
+        # 'teste13',
+        # 'teste14',
+        # 'teste15',
+        # 'teste16',
+        # 'teste17',
+        # 'teste18',
+        # 'teste19',
+        # 'teste20',
+        ]
 
-    timeout = 1000  # send the next message if not response
-    time_of_last_data = time.time()
     rdt = RDT.RDT('client', args.server, args.port)
+
     try:
-        for msg_S in msg_L:
-            print('Client asking to change case: ' + msg_S)
-            rdt.rdt_4_0_send(msg_S)
 
-            # try to receive message before timeout
-            msg_S = None
-            while msg_S == None:
-                msg_S = rdt.rdt_4_0_receive()
-                if msg_S is None:
-                    if time_of_last_data + timeout < time.time():
-                        break
-                    else:
-                        continue
-            time_of_last_data = time.time()
+        # Send all messages
+        rdt.rdt_4_0_send(msgs)
+            
+        # Receive all messages
+        msgs = rdt.rdt_4_0_receive()
 
-            # print the result
-            if msg_S:
-                print('Client: Received the converted frase to: ' + msg_S + '\n')
+        # print the result
+        for msg in msgs:
+            print(f'Client: Received the converted frase {msg}')
+                
     except (KeyboardInterrupt, SystemExit):
+        rdt.disconnect()
         print("Ending connection...")
+
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        rdt.disconnect()
         print("Ending connection...")
+        
     finally:
         rdt.disconnect()
         print("Connection ended.")
+
+    # close socket
+    del rdt

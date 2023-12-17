@@ -1,7 +1,6 @@
 import Network
 import argparse
 import time
-from time import sleep
 import hashlib
 
 debug = True    
@@ -12,209 +11,371 @@ def debug_log(message):
     if debug:
         print(message)
 
+def format_time(val):
+    f_time = time.strftime("%d-%m-%Y %H:%M:%S", time.gmtime(val/1000000000 - 3*60*60))
+    us = (val//1000) % 1000000
+    f_time += f".{us:3d} us" #microsseconds
+    return f_time
 
 class Packet:
-    # New field to indicate if the packet is an ACK
-    ack_flag_length = 1
-    # the number of bytes used to store the packet length
-    seq_num_S_length = 10
-    length_S_length = 10
-    # length of md5 checksum in hex
-    checksum_length = 32
+    # packet = [size, seq_num, checksum, data ]
 
-    def __init__(self, seq_num, msg_S, ack_flag=False):
+    # the number of bytes(chars) used to store the size of the packet
+    size_len = 8
+
+    # the number of bytes(chars) used to store sequence number
+    seq_num_len = 8
+    
+    # the number of bytes(chars) of md5 checksum in hex
+    checksum_len = 32
+
+    # Object Variables
+    size = None
+    size_str = None
+    seq_num = None
+    seq_num_str = None
+    checksum = None
+    msg = None
+    packet = None
+
+    # Receive packet format settings at initialization
+    def __init__(self, size_len=8, seq_num_len=8, checksum_len=32):
+        self.size_len = size_len
+        self.seq_num_len = seq_num_len
+        self.checksum_len = checksum_len
+
+
+    def code(self, seq_num, msg):
+
+        # create size (int and str)
+        self.size = self.size_len + self.seq_num_len + self.checksum_len + len(msg)
+        self.size_str = str(self.size).zfill(self.size_len)
+
+        # create seq_num (int and str)
         self.seq_num = seq_num
-        self.msg_S = msg_S
-        self.ack_flag = ack_flag
+        self.seq_num_str = str(seq_num).zfill(self.seq_num_len)
 
-    @classmethod
-    def from_byte_S(cls, byte_S):
-        # Extract the fields from the byte string
-        seq_num_S = byte_S[cls.length_S_length: cls.length_S_length + cls.seq_num_S_length]
-        ack_flag_S = byte_S[cls.length_S_length + cls.seq_num_S_length: cls.length_S_length + cls.seq_num_S_length + cls.ack_flag_length]
-        msg_S = byte_S[cls.length_S_length + cls.seq_num_S_length + cls.ack_flag_length + cls.checksum_length:]
-        print(msg_S)
-        # Check for corruption before initializing the packet
-        if cls.corrupt(byte_S):
-            raise RuntimeError('Cannot initialize Packet: byte_S is corrupt')
+        # compute the checksum (str)
+        self.checksum = hashlib.md5((self.size_str + self.seq_num_str + msg).encode('utf-8')).hexdigest()
 
-        # Initialize the packet object
-        return cls(int(seq_num_S), msg_S, bool(int(ack_flag_S)))
+        # save message (str)
+        self.msg = msg
 
-    def get_byte_S(self):
-        # Convert sequence number to a byte field of seq_num_S_length bytes
-        seq_num_S = str(self.seq_num).zfill(self.seq_num_S_length)
-        # Determine the ACK flag value
-        ack_flag_S = '1' if self.ack_flag else '0'
-        # Convert length to a byte field of length_S_length bytes
-        length_S = str(self.length_S_length + len(seq_num_S) + len(ack_flag_S) + self.checksum_length + len(self.msg_S)).zfill(self.length_S_length)
-        # print(length_S)
-        # Compute the checksum
-        checksum = hashlib.md5((length_S + seq_num_S + ack_flag_S + self.msg_S).encode('utf-8'))
-        checksum_S = checksum.hexdigest()
-        # print(checksum_S)
-        # Compile into a byte string
-        return length_S + seq_num_S + ack_flag_S + checksum_S + self.msg_S
+        # compile into a string
+        self.packet = self.size_str + self.seq_num_str + self.checksum + self.msg
 
-    @staticmethod
-    def corrupt(byte_S):
-        # Extract the fields from the byte string
-        length_S = byte_S[0:Packet.length_S_length]
-        seq_num_S = byte_S[Packet.length_S_length: Packet.length_S_length + Packet.seq_num_S_length]
-        ack_flag_S = byte_S[Packet.length_S_length + Packet.seq_num_S_length: Packet.length_S_length + Packet.seq_num_S_length + Packet.ack_flag_length]
-        checksum_S = byte_S[Packet.length_S_length + Packet.seq_num_S_length + Packet.ack_flag_length: Packet.length_S_length + Packet.seq_num_S_length + Packet.ack_flag_length + Packet.checksum_length]
-        msg_S = byte_S[Packet.length_S_length + Packet.seq_num_S_length + Packet.ack_flag_length + Packet.checksum_length:]
-
-        # Compute the checksum locally
-        checksum = hashlib.md5((length_S + seq_num_S + ack_flag_S + msg_S).encode('utf-8'))
-        computed_checksum_S = checksum.hexdigest()
-
-        # and check if the same
-        return checksum_S != computed_checksum_S
-
-    def is_ack_pack(self):
-        return self.ack_flag
+        return self.packet
     
 
+    def split(self, packet):
+
+        # split packet into respective variables
+        limits = [self.size_len, self.size_len+self.seq_num_len, self.size_len+self.seq_num_len+self.checksum_len]
+        
+        size_str = packet[0 : limits[0]]
+        seq_num_str = packet[limits[0] : limits[1]]
+        checksum = packet[limits[1] : limits[2]]
+        msg = packet[limits[2] : ]
+
+        return size_str, seq_num_str, checksum, msg
+
+
+    def corrupt(self, packet):
+
+        # extract the fields
+        size_str, seq_num_str, checksum, msg = self.split(packet)
+
+        # compute the checksum locally
+        computed = hashlib.md5(str(size_str + seq_num_str + msg).encode('utf-8')).hexdigest()
+
+        # and check if they are the same
+        return checksum != computed
+
+
+    def decode(self, packet):
+
+        if self.corrupt(packet):
+            raise RuntimeError('Cannot extract packet: it is corrupted')
+
+        # extract the fields
+        size_str, seq_num_str, checksum, msg = self.split(packet)
+        
+        # save into object variables
+        self.size = int(size_str)
+        self.size_str = size_str
+
+        self.seq_num = int(seq_num_str)
+        self.seq_num_str = seq_num_str
+
+        self.checksum = checksum
+
+        self.msg = msg
+
+        self.packet = packet
+
+        # split packet into its components
+        return size_str, seq_num_str, checksum, msg
+    
+
+    def get_ack(self):
+        # when ACK is sent, it is formated as ACK.XX, XX = seq_num
+        if "ACK" == self.msg:
+            return self.seq_num
+        
+        return -1
+
+
 class RDT:
-    # latest sequence number used in a packet
-    seq_num = 0
-    # buffer of bytes read from network
-    byte_buffer = ''
-    timeout = 3
-    window_size = 6 
+    # parameters of the protocol
+    window_len = 4
+    modulo = window_len*2
 
-    def __init__(self, role_S, server_S, port):
-        self.network = Network.NetworkLayer(role_S, server_S, port)
-        self.expected_seq_num = 0
-        self.sent_packets = {} # to store sent packets
-        self.sent_unacknowledged = {} # to store sent but unacknowledged packets
+    # packet timeout, maybe 3s is better, but system is already very fast
+    timeout = 2
 
+    # connection timeout:
+    # if, for 5 seconds duration, receiver doesn't receive any packets, terminate connection
+    connection_timeout = 5 
+    
+    def __init__(self, role_str, server_str, port):
+        self.network = Network.NetworkLayer(role_str, server_str, port)
+    
     def disconnect(self):
         self.network.disconnect()
 
-    def rdt_4_0_send(self, msg_S):
-        current_seq = self.seq_num
+    def rdt_4_0_send(self, msgs):
 
-        while current_seq == self.seq_num:
-            # Send packets up to the window size
-            for i in range(self.window_size):
-                if current_seq + i not in self.sent_unacknowledged:
-                    p = Packet(current_seq + i, msg_S)
-                    self.sent_unacknowledged[current_seq + i] = p
-                    self.network.udt_send(p.get_byte_S())
+        queue = list(msgs)
 
-            # Wait for acknowledgments
-            for i in range(self.window_size):
-                response = ''
-                timer = time.time()
+        # next sequence number [0 to 7] to be sent
+        nxt = 0
+        
+        # sequence number of the last not acknowledge packet inside window
+        base = 0
 
-                while response == '' and timer + self.timeout > time.time():
-                    response = self.network.udt_receive()
+        # window = {idx : [wasACK?, packet, timer] }
+        window = {}
 
-                if response == '':
-                    continue
+        debug_log("--------------------------------------------------")
+        debug_log(f"Started sending packets at {format_time(time.time_ns())}")
+        debug_log("--------------------------------------------------\n")
 
-                debug_log("SENDER: " + response)
+        while(True):
+            
+            # stop condition: no more packets to send
+            if (len(queue) == 0 and len(window) == 0):
 
-                msg_length = int(response[:Packet.length_S_length])
-                self.byte_buffer = response[msg_length:]
+                # sleep for {connection_timeout} seconds to sync with receiver, so receiver can timeout
+                time.sleep(self.connection_timeout)
 
-                if not Packet.corrupt(response[:msg_length]):
-                    response_p = Packet.from_byte_S(response[:msg_length])
-                    if response_p.seq_num in self.sent_unacknowledged:
-                        if response_p.msg_S == "1":
-                            debug_log("SENDER: Received ACK for seq_num {}".format(response_p.seq_num))
-                            del self.sent_unacknowledged[response_p.seq_num]
-                        elif response_p.msg_S == "0":
-                            debug_log("SENDER: NAK received for seq_num {}".format(response_p.seq_num))
-                            # Optionally handle NAK by resending the packet
-                else:
-                    debug_log("SENDER: Corrupted ACK")
-                    self.byte_buffer = ''
+                debug_log("##################################################")
+                debug_log(f"Sent all packets, terminating at {format_time(time.time_ns())}")
+                debug_log("##################################################\n")
+                break
 
-            # Continue with the next sequence number
-            current_seq += self.window_size
+            # Data received from above and inside window boundary
+            if (len(queue) > 0 and len(window) < self.window_len):
+                
+                # create a packet, buffer it into window
+                msg = queue.pop(0)
+                p = Packet()
+                p.code(nxt, msg)
+                window[nxt] = [False, p, time.time()]
+                debug_log(f"First time: Sending packet {nxt}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                nxt = (nxt + 1) % self.modulo
 
-    def rdt_4_0_receive(self):
-        ret_S = None
-        current_seq = self.seq_num
+                # send it!
+                self.network.udt_send(p.packet)
 
-        while current_seq == self.seq_num:
-            # Receive packets up to the window size
-            for i in range(self.window_size):
-                byte_S = self.network.udt_receive()
-                self.byte_buffer += byte_S
+            # Check for timeouts
+            for seq in window.keys():
+                wasAck, p, timer = window[seq]
 
-                # Check if we have received enough bytes
-                if len(self.byte_buffer) < Packet.length_S_length:
-                    break  # Not enough bytes to read packet length
+                if (not wasAck) and (timer + self.timeout < time.time()):
+                    # resend packet and update timer
+                    debug_log(f"Timeout: Resend packet {seq}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                    window[seq][2] = time.time()
+                    self.network.udt_send(p.packet)
 
-                # Extract the length of the packet
-                length = int(self.byte_buffer[:Packet.length_S_length])
-                print(length)
+            # Check for received ACK packet
+            received = None
+            start_timer = time.time()
+            # try to read an packet from network for {self.timeout}/2 seconds
+            while (received == None and (time.time() < (start_timer + self.timeout/2))):
+                received = self.network.udt_receive()
 
-                # Check if there are enough bytes to read the whole packet
-                if len(self.byte_buffer) < length:
-                    break
+            if (received):
+                
+                # buffer content read from network, it can contain more than 1 packet
+                buffer = received
+                
+                while (len(buffer) >= Packet.size_len):
 
-                # Check if the packet is corrupt
-                if Packet.corrupt(self.byte_buffer):
-                    # Send a NAK
-                    debug_log("RECEIVER: Corrupt packet, sending NAK.")
-                    answer = Packet(self.seq_num, "0")
-                    self.network.udt_send(answer.get_byte_S())
-                else:
-                    # Create a packet from buffer content
-                    p = Packet.from_byte_S(self.byte_buffer[:length])
-
-                    # Check if the packet is an ACK
-                    if p.is_ack_pack():
-                        self.byte_buffer = self.byte_buffer[length:]
+                    # length attribute may be corrupted
+                    try:
+                        length = int(buffer[0:Packet.size_len])
+                    except:
+                        debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
                         continue
 
-                    # Process the received packet
-                    if p.seq_num < self.seq_num:
-                        debug_log('RECEIVER: Already received packet.  ACK again.')
-                        # Send another ACK
-                        answer = Packet(p.seq_num, "1")
-                        self.network.udt_send(answer.get_byte_S())
-                    elif p.seq_num == self.seq_num:
-                        debug_log('RECEIVER: Received new.  Send ACK and increment seq.')
-                        # SEND ACK
-                        answer = Packet(self.seq_num, "1")
-                        self.network.udt_send(answer.get_byte_S())
-                        debug_log("RECEIVER: Incrementing seq_num from {} to {}".format(self.seq_num, self.seq_num + 1))
-                        self.seq_num += 1
+                    if (len(buffer) >= length):
 
-                    # Add contents to the return string
-                    ret_S = p.msg_S if (ret_S is None) else ret_S + p.msg_S
+                        # extract first packet, leave the rest at the buffer
+                        received = buffer[0:length]
+                        buffer = buffer[length:]
 
-                # Remove the packet bytes from the buffer
-                self.byte_buffer = self.byte_buffer[length:]
+                        p = Packet()
+                        if (not p.corrupt(received)):
+                            p.decode(received)
+                            ack_num = p.get_ack()
+                            debug_log(f"Received: Reading non corrupted packet {ack_num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+                            if (ack_num != -1 and ack_num in window):
+                                window[ack_num][0] = True
 
-            # If this was the last packet, return on the next iteration
-        return ret_S
+                                # slide window
+                                if (ack_num == base):
+                                    idx = base
+                                    while(idx in window and window[idx][0]):
+                                        window.pop(idx)
+                                        idx = (idx + 1) % self.modulo
+                                    base = idx
+                        else:
+                            debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+
+                    else:
+                        break
+
+    def rdt_4_0_receive(self):
+
+        # buffer that will be sent to the next layer
+        msgs = []
+        
+        # sequence number of the last not acknowledge packet inside window
+        base = 0
+
+        # list of indexes in the range = [base-N, base-1] (arithmetic modular)
+        # because the modulo chosen is twice the window's length, behind_window will be complementar to window
+        behind = {4, 5, 6, 7}
+        window_range = {0, 1, 2, 3}
+
+        # window = {idx : packet}
+        # window only supports idx in the range [base, base+N-1]
+        window = {}
+
+        last_timer = time.time()
+
+        debug_log("--------------------------------------------------")
+        debug_log(f"Started receiving packets at {format_time(time.time_ns())}")
+        debug_log("--------------------------------------------------\n")
+
+        while(True):
+
+            # stop condition: no packets received for at least {connection_timeout} => timeout
+            if (last_timer + self.connection_timeout < time.time()):
+                debug_log("##################################################")
+                debug_log(f"Time limit: Stopped receiving packets at {format_time(time.time_ns())}")
+                debug_log("##################################################\n")
+                break
+            
+            # check for received packet
+            received = None
+            start_timer = time.time()
+            # try to read an packet from network for {self.timeout}/2 seconds
+            while (received == None and (time.time() < (start_timer + self.timeout/2))):
+                received = self.network.udt_receive()
+
+            if (received):
+                
+                # received a packet, update last time 
+                last_timer = time.time()
+
+                # buffer content read from network, it can contain more than 1 packet
+                buffer = received
+                
+                while (len(buffer) >= Packet.size_len):
+
+                    # length attribute may be corrupted
+                    try:
+                        length = int(buffer[0:Packet.size_len])
+                    except:
+                        debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+                        continue
+
+                    if (len(buffer) >= length):
+
+                        # extract first packet, leave the rest at the buffer
+                        received = buffer[0:length]
+                        buffer = buffer[length:]
+                                
+                        p = Packet()
+                        if (not p.corrupt(received)):
+                            p.decode(received)
+                            num = p.seq_num
+                            debug_log(f"Received: Reading non corrupted packet {num}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
+
+                            # already received packet, but sender might be behind
+                            # just send ack, don't buffer it
+                            if num in behind:
+                                a = Packet()
+                                a.code(num, "ACK")
+                                debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
+                                self.network.udt_send(a.packet)
+                            
+                            # packed inside window range
+                            # send ack and buffer it
+                            elif num in window_range:
+                                a = Packet()
+                                a.code(num, "ACK")
+                                debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
+                                self.network.udt_send(a.packet)
+
+                                # buffer packet
+                                window[num] = p
+
+                                # slide window
+                                if (num == base):
+                                    idx = base
+                                    while(idx in window):
+
+                                        if (window[idx].msg != "FIN"):
+                                            msgs.append(window[idx].msg)
+                                        window.pop(idx)
+
+                                        # update ranges
+                                        behind.remove((idx-self.window_len+self.modulo) % self.modulo)
+                                        behind.add(idx)
+                                        window_range.remove(idx)
+                                        window_range.add((idx+self.window_len) % self.modulo)
+
+                                        idx = (idx + 1) % self.modulo
+
+                                    base = idx
+
+                        else:
+                            debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+        
+        return msgs
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='RDT implementation.')
-    parser.add_argument('role', help='Role is either client or server.', choices=['client', 'server'])
-    parser.add_argument('server', help='Server.')
-    parser.add_argument('port', help='Port.', type=int)
-    args = parser.parse_args()
 
-    rdt = RDT(args.role, args.server, args.port)
-    if args.role == 'client':
-        rdt.rdt_4_0_send('MSG_FROM_CLIENT')
-        sleep(2)
-        print(rdt.rdt_4_0_receive())
-        rdt.disconnect()
+    # msgs = [
+    #     'teste1',
+    #     'teste2',
+    #     'teste3',
+    #     'teste4',
+    #     'teste5',
+    #     'teste6', 
+    #     'teste7',
+    #     'teste8',
+    #     'teste9',
+    #     ]
 
+    # rdt = RDT('Client', 'localhost', 5000)
+    # rdt.rdt_4_0_send(msgs)
 
-    else:
-        sleep(1)
-        print(rdt.rdt_4_0_receive())
-        rdt.rdt_4_0_send('MSG_FROM_SERVER')
-        rdt.disconnect()
-        
+    rdt = RDT('Server', None, 5000)
+
+    msgs = rdt.rdt_4_0_receive()
+
+    print(msgs)
