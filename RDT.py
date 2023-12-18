@@ -1,7 +1,7 @@
 import Network
-import argparse
 import time
 import hashlib
+import Metrics
 
 debug = True    
 # default = False
@@ -155,7 +155,7 @@ class RDT:
     def disconnect(self):
         self.network.disconnect()
 
-    def rdt_4_0_send(self, msgs):
+    def rdt_4_0_send(self, msgs, metrics):
 
         queue = list(msgs)
 
@@ -176,6 +176,9 @@ class RDT:
             
             # stop condition: no more packets to send
             if (len(queue) == 0 and len(window) == 0):
+
+                # if not initialized, set end time for the last packet sent 
+                metrics.set_end()
 
                 # sleep for {connection_timeout} seconds to sync with receiver, so receiver can timeout
                 time.sleep(self.connection_timeout)
@@ -198,6 +201,11 @@ class RDT:
 
                 # send it!
                 self.network.udt_send(p.packet)
+                # add packet sent
+                metrics.add_packet_sent(p)
+
+                # if not initialized, set start time for the first packet sent 
+                metrics.set_start()
 
             # Check for timeouts
             for seq in window.keys():
@@ -208,6 +216,10 @@ class RDT:
                     debug_log(f"Timeout: Resend packet {seq}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                     window[seq][2] = time.time()
                     self.network.udt_send(p.packet)
+                    # add packet sent
+                    metrics.add_packet_sent(p)
+                    # add retransmission sent
+                    metrics.add_retransmission_sent(p)
 
             # Check for received ACK packet
             received = None
@@ -228,6 +240,8 @@ class RDT:
                         length = int(buffer[0:Packet.size_len])
                     except:
                         debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+                        # add corrupted received
+                        metrics.add_corrupted_received()
                         continue
 
                     if (len(buffer) >= length):
@@ -253,11 +267,12 @@ class RDT:
                                     base = idx
                         else:
                             debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
-
+                            # add corrupted received
+                            metrics.add_corrupted_received()
                     else:
                         break
 
-    def rdt_4_0_receive(self):
+    def rdt_4_0_receive(self, metrics):
 
         # buffer that will be sent to the next layer
         msgs = []
@@ -311,6 +326,8 @@ class RDT:
                         length = int(buffer[0:Packet.size_len])
                     except:
                         debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
+                        # add corrupted received
+                        metrics.add_corrupted_received()
                         continue
 
                     if (len(buffer) >= length):
@@ -332,6 +349,7 @@ class RDT:
                                 a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
+                                metrics.add_packet_sent(a)
                             
                             # packed inside window range
                             # send ack and buffer it
@@ -340,6 +358,7 @@ class RDT:
                                 a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
+                                metrics.add_packet_sent(a)
 
                                 # buffer packet
                                 window[num] = p
@@ -365,29 +384,6 @@ class RDT:
 
                         else:
                             debug_log(f"Received: CORRUPTED packet, at {format_time(time.time_ns())}" + f"\n\t {received}\n")
-        
+                            # add corrupted received
+                            metrics.add_corrupted_received()
         return msgs
-
-
-if __name__ == '__main__':
-
-    # msgs = [
-    #     'teste1',
-    #     'teste2',
-    #     'teste3',
-    #     'teste4',
-    #     'teste5',
-    #     'teste6', 
-    #     'teste7',
-    #     'teste8',
-    #     'teste9',
-    #     ]
-
-    # rdt = RDT('Client', 'localhost', 5000)
-    # rdt.rdt_4_0_send(msgs)
-
-    rdt = RDT('Server', None, 5000)
-
-    msgs = rdt.rdt_4_0_receive()
-
-    print(msgs)

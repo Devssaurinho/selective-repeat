@@ -1,7 +1,6 @@
 import argparse
 import RDT
-import time
-
+from Metrics import Metrics
 
 def upperCase(message):
     capitalizedSentence = message.upper()
@@ -13,17 +12,17 @@ if __name__ == '__main__':
     parser.add_argument('port', help='Port.', type=int)
     args = parser.parse_args()
 
-    timeout = 1000
-    time_of_last_data = time.time()
-
     rdt = RDT.RDT('server', None, args.port)
 
+    metricsServerSender = Metrics("Server - Sender")
+    metricsServerReceiver = Metrics("Server - Receiver")
+
     try:
-        msgs = rdt.rdt_4_0_receive()
+        msgs = rdt.rdt_4_0_receive(metricsServerReceiver)
 
         reply = [upperCase(msg) for msg in msgs]
         
-        rdt.rdt_4_0_send(reply)
+        rdt.rdt_4_0_send(reply, metricsServerSender)
 
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()

@@ -1,6 +1,6 @@
 import argparse
 import RDT
-import time
+from Metrics import Metrics
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Quotation client talking to a Pig Latin server.')
@@ -34,18 +34,23 @@ if __name__ == '__main__':
 
     rdt = RDT.RDT('client', args.server, args.port)
 
+    metricsClientSender = Metrics("Client - Sender")
+    metricsClientReceiver = Metrics("Client - Receiver")
+
     try:
 
         # Send all messages
-        rdt.rdt_4_0_send(msgs)
+        rdt.rdt_4_0_send(msgs, metricsClientSender)
             
         # Receive all messages
-        msgs = rdt.rdt_4_0_receive()
+        msgs = rdt.rdt_4_0_receive(metricsClientReceiver)
 
         # print the result
         for msg in msgs:
             print(f'Client: Received the converted sentence {msg}')
-                
+        
+        print(metricsClientSender.start_time, metricsClientSender.end_time)
+        
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
         print("Ending connection...")
