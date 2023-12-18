@@ -177,9 +177,6 @@ class RDT:
             # stop condition: no more packets to send
             if (len(queue) == 0 and len(window) == 0):
 
-                # if not initialized, set end time for the last packet sent 
-                metrics.set_end()
-
                 # sleep for {connection_timeout} seconds to sync with receiver, so receiver can timeout
                 time.sleep(self.connection_timeout)
 
@@ -203,7 +200,8 @@ class RDT:
                 self.network.udt_send(p.packet)
                 # add packet sent
                 metrics.add_packet_sent(p)
-
+                # if initialized, override end time for the last packet sent 
+                metrics.set_end()
                 # if not initialized, set start time for the first packet sent 
                 metrics.set_start()
 
@@ -220,6 +218,8 @@ class RDT:
                     metrics.add_packet_sent(p)
                     # add retransmission sent
                     metrics.add_retransmission_sent(p)
+                    # if initialized, override end time for the last packet sent 
+                    metrics.set_end()
 
             # Check for received ACK packet
             received = None
@@ -349,8 +349,13 @@ class RDT:
                                 a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
+                                # if initialized, override end time for the last packet sent 
+                                metrics.set_end()
+                                # if not initialized, set start time for the first packet sent 
+                                metrics.set_start()
+                                # add packet sent (ack)
                                 metrics.add_packet_sent(a)
-                            
+
                             # packed inside window range
                             # send ack and buffer it
                             elif num in window_range:
@@ -358,6 +363,11 @@ class RDT:
                                 a.code(num, "", 1)
                                 debug_log(f"Sending ACK: for packet {num}, at {format_time(time.time_ns())}" + f"\n\t {a.packet}\n")
                                 self.network.udt_send(a.packet)
+                                # if initialized, override end time for the last packet sent 
+                                metrics.set_end()
+                                # if not initialized, set start time for the first packet sent 
+                                metrics.set_start()
+                                # add packet sent (ack)
                                 metrics.add_packet_sent(a)
 
                                 # buffer packet

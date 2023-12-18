@@ -49,8 +49,14 @@ if __name__ == '__main__':
         for msg in msgs:
             print(f'Client: Received the converted sentence {msg}')
         
-        print(metricsClientSender.start_time, metricsClientSender.end_time)
-        
+        # Sender
+        metricsClientSender.plot_simulation_time()
+        metricsClientSender.plot_corrupted()
+
+        # Receiver
+        metricsClientReceiver.plot_simulation_time()
+        metricsClientReceiver.plot_corrupted()
+
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
         print("Ending connection...")

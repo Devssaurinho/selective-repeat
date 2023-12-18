@@ -24,6 +24,13 @@ if __name__ == '__main__':
         
         rdt.rdt_4_0_send(reply, metricsServerSender)
 
+        # Sender
+        metricsServerSender.plot_simulation_time()
+
+
+        # Receiver
+        metricsServerReceiver.plot_simulation_time()
+
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
         print("Ending connection...")
