@@ -1,7 +1,6 @@
 import Network
 import time
 import hashlib
-import Metrics
 
 debug = True    
 # default = False
@@ -200,6 +199,8 @@ class RDT:
                 self.network.udt_send(p.packet)
                 # add packet sent
                 metrics.add_packet_sent(p)
+                # add packet sent for the first time
+                metrics.add_packet_first_sent(p)
                 # if initialized, override end time for the last packet sent 
                 metrics.set_end()
                 # if not initialized, set start time for the first packet sent 

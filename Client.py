@@ -52,10 +52,18 @@ if __name__ == '__main__':
         # Sender
         metricsClientSender.plot_simulation_time()
         metricsClientSender.plot_corrupted()
+        metricsClientSender.plot_sentPacket()
+        metricsClientSender.plot_retransmissions()
+        metricsClientSender.plot_throughput()
+        metricsClientSender.plot_goodput()
 
         # Receiver
         metricsClientReceiver.plot_simulation_time()
         metricsClientReceiver.plot_corrupted()
+        metricsClientReceiver.plot_sentPacket()
+        metricsClientReceiver.plot_retransmissions()
+        metricsClientReceiver.plot_throughput()
+        metricsClientReceiver.plot_goodput()
 
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
