@@ -1,6 +1,12 @@
 # Selective Repeat 
 Implementation of the rdt4.0 protocol. The primary enhancement is the incorporation of the selective repeat mechanism, allowing for the seamless flow of multiple packets between a client and a server.
 
+## Members
+
+200028880 - Wallace Ben Teng Lin Wu
+200067257 - Matheus Santos Alencar
+190024771 - Andressa Araújo
+
 ## Project Details
 
 ### Objective
