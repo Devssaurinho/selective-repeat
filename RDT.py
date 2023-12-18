@@ -139,12 +139,31 @@ class RDT:
     
     def __init__(self, role_str, server_str, port):
         self.network = Network.NetworkLayer(role_str, server_str, port)
+        self.start_time = None
+        self.end_time = None
+        self.packet_sizes = [] 
+
+    # To mark the start of rdt_4_0_send and rdt_4_0_receive
+    def mark_start(self):
+        self.start_time = time.time()
+
+    # To mark the end of rdt_4_0_send and rdt_4_0_receive
+    def mark_end(self):
+        self.end_time = time.time()
+
+    def get_start_time(self):
+        return self.start_time
+
+    def get_end_time(self):
+        return self.end_time
     
     def disconnect(self):
         self.network.disconnect()
 
     def rdt_4_0_send(self, msgs):
 
+        self.mark_start()
+        
         queue = list(msgs)
 
         # next sequence number [0 to 7] to be sent
@@ -167,7 +186,7 @@ class RDT:
 
                 # sleep for {connection_timeout} seconds to sync with receiver, so receiver can timeout
                 time.sleep(self.connection_timeout)
-
+                self.mark_end()
                 debug_log("##################################################")
                 debug_log(f"Sent all packets, terminating at {format_time(time.time_ns())}")
                 debug_log("##################################################\n")
@@ -180,6 +199,12 @@ class RDT:
                 msg = queue.pop(0)
                 p = Packet()
                 p.code(nxt, msg)
+
+                # Record the packet size and payload size
+                packet_size = len(p.packet)  # Total size of the packet
+                payload_size = len(msg)  # Size of the payload
+                self.packet_sizes.append((packet_size, payload_size))
+
                 window[nxt] = [False, p, time.time()]
                 debug_log(f"First time: Sending packet {nxt}, at {format_time(time.time_ns())}" + f"\n\t {p.packet}\n")
                 nxt = (nxt + 1) % self.modulo
@@ -246,7 +271,8 @@ class RDT:
                         break
 
     def rdt_4_0_receive(self):
-
+        
+        self.mark_start()
         # buffer that will be sent to the next layer
         msgs = []
         
@@ -272,6 +298,7 @@ class RDT:
 
             # stop condition: no packets received for at least {connection_timeout} => timeout
             if (last_timer + self.connection_timeout < time.time()):
+                self.mark_end()
                 debug_log("##################################################")
                 debug_log(f"Time limit: Stopped receiving packets at {format_time(time.time_ns())}")
                 debug_log("##################################################\n")
