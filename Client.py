@@ -6,31 +6,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Quotation client talking to a Pig Latin server.')
     parser.add_argument('server', help='Server.')
     parser.add_argument('port', help='Port.', type=int)
+    parser.add_argument('messages', help='Number of Messages', type=int, default=11)
     args = parser.parse_args()
 
-    msgs = [
-    	'teste0',
-        'teste1',
-        'teste2',
-        'teste3',
-        'teste4',
-        'teste5',
-        'teste6',
-        'teste7',
-        'teste8',
-        'teste9',
-        'teste10',
-        # 'teste11',
-        # 'teste12',
-        # 'teste13',
-        # 'teste14',
-        # 'teste15',
-        # 'teste16',
-        # 'teste17',
-        # 'teste18',
-        # 'teste19',
-        # 'teste20',
-        ]
+    msgs = [f'teste{i}' for i in range(args.messages)]
 
     rdt = RDT.RDT('client', args.server, args.port)
 

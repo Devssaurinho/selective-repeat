@@ -142,11 +142,11 @@ class RDT:
     modulo = window_len*2
 
     # packet timeout, maybe 3s is better, but system is already very fast
-    timeout = 2
+    timeout = 1
 
     # connection timeout:
-    # if, for 5 seconds duration, receiver doesn't receive any packets, terminate connection
-    connection_timeout = 10 
+    # if, for 3 seconds duration, receiver doesn't receive any packets, terminate connection
+    connection_timeout = 3
     
     def __init__(self, role_str, server_str, port):
         self.network = Network.NetworkLayer(role_str, server_str, port)
@@ -223,11 +223,11 @@ class RDT:
                     metrics.set_end()
 
             # Check for received ACK packet
-            received = None
-            start_timer = time.time()
+            # received = None
+            # start_timer = time.time()
             # try to read an packet from network for {self.timeout}/2 seconds
-            while (received == None and (time.time() < (start_timer + self.timeout/2))):
-                received = self.network.udt_receive()
+            # while (received == None and (time.time() < (start_timer + self.timeout/2))):
+            received = self.network.udt_receive()
 
             if (received):
                 
@@ -306,11 +306,11 @@ class RDT:
                 break
             
             # check for received packet
-            received = None
-            start_timer = time.time()
+            # received = None
+            # start_timer = time.time()
             # try to read an packet from network for {self.timeout}/2 seconds
-            while (received == None and (time.time() < (start_timer + self.timeout/2))):
-                received = self.network.udt_receive()
+            # while (received == None and (time.time() < (start_timer + self.timeout/2))):
+            received = self.network.udt_receive()
 
             if (received):
                 
