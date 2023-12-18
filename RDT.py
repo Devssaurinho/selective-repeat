@@ -145,8 +145,8 @@ class RDT:
     timeout = 1
 
     # connection timeout:
-    # if, for 3 seconds duration, receiver doesn't receive any packets, terminate connection
-    connection_timeout = 3
+    # if, for 5 seconds duration, receiver doesn't receive any packets, terminate connection
+    connection_timeout = 5
     
     def __init__(self, role_str, server_str, port):
         self.network = Network.NetworkLayer(role_str, server_str, port)
