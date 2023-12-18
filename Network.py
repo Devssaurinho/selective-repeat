@@ -9,9 +9,9 @@ import RDT
 ## Provides an abstraction for the network layer
 class NetworkLayer:
     # configuration parameters
-    prob_pkt_loss = 0
-    prob_byte_corr = 0
-    prob_pkt_reorder = 0
+    prob_pkt_loss = 0.1
+    prob_byte_corr = 0.1
+    prob_pkt_reorder = 0.1
 
     # class variables
     sock = None

@@ -135,8 +135,60 @@ class Packet:
         
         return -1
 
+class Transport:
+    packet_len = 5 # bytes per packet
 
+    # split message into fragments, which are fixed length packets of len={packet_len}
+    def split(self, text):
+
+        msgs = []
+        while( len(text) >= self.packet_len ):
+            msg = text[:self.packet_len]
+            msgs.append(msg)
+            text = text[self.packet_len:]
+
+        if (len(text)):
+            msgs.append(text)
+        
+        return msgs
+
+
+    # join received messages into a single block of text
+    def join(self, msgs):
+        text = ""
+
+        for fragment in msgs:
+            text += fragment
+
+        return text
+
+
+    # Send a block of text
+    def send(self, rdt, text, metrics):
+
+        # split it
+        msgs = self.split(text)
+
+        # send it
+        rdt.rdt_4_0_send(msgs, metrics)
+
+
+    # Receive fragments of text
+    def receive(self, rdt, metrics):
+
+        # receive it
+        msgs = rdt.rdt_4_0_receive(metrics)
+
+        if msgs == []:
+            return None
+        
+        # join it
+        text = self.join(msgs)
+
+        return text
+    
 class RDT:
+
     # parameters of the protocol
     window_len = 4
     modulo = window_len*2
@@ -398,3 +450,4 @@ class RDT:
                             # add corrupted received
                             metrics.add_corrupted_received()
         return msgs
+    

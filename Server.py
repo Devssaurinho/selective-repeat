@@ -1,6 +1,7 @@
 import argparse
 import RDT
 from Metrics import Metrics
+import time
 
 def upperCase(message):
     capitalizedSentence = message.upper()
@@ -13,32 +14,50 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     rdt = RDT.RDT('server', None, args.port)
+    transport = RDT.Transport()
 
-    metricsServerSender = Metrics("Server - Sender")
-    metricsServerReceiver = Metrics("Server - Receiver")
+    last_received_time = time.time()
+    timeout_limit = 30
 
     try:
-        msgs = rdt.rdt_4_0_receive(metricsServerReceiver)
 
-        reply = [upperCase(msg) for msg in msgs]
-        
-        rdt.rdt_4_0_send(reply, metricsServerSender)
+        while(True):
+            
+            if (last_received_time + timeout_limit < time.time()):
+                break
 
-        # Receiver
-        metricsServerReceiver.plot_simulation_time()
-        metricsServerReceiver.plot_corrupted(1)
-        metricsServerReceiver.plot_sentPacket(1)
-        metricsServerReceiver.plot_retransmissions(1)
-        metricsServerReceiver.plot_throughput(1)
-        metricsServerReceiver.plot_goodput(1)
+            metricsServerSender = Metrics("Server - Sender")
+            metricsServerReceiver = Metrics("Server - Receiver")
 
-        # Sender
-        metricsServerSender.plot_simulation_time()
-        metricsServerSender.plot_corrupted(1)
-        metricsServerSender.plot_sentPacket(1)
-        metricsServerSender.plot_retransmissions(1)
-        metricsServerSender.plot_throughput(1)
-        metricsServerSender.plot_goodput(1)
+            text = transport.receive(rdt, metricsServerReceiver)
+
+            if (text):
+
+                last_received_time = time.time()
+
+                reply = upperCase(text)
+                transport.send(rdt, reply, metricsServerSender)
+
+                print("||||||||||||||||||||||||||||||||||||||||||||||||||")
+                print(f'Server: Original Sentence: \n\t{text}')
+                print(f'Server: Converted Sentence Received: \n\t{reply}')
+                print("||||||||||||||||||||||||||||||||||||||||||||||||||\n")
+
+                # Receiver
+                metricsServerReceiver.plot_simulation_time()
+                # metricsServerReceiver.plot_corrupted(1)
+                # metricsServerReceiver.plot_sentPacket(1)
+                # metricsServerReceiver.plot_retransmissions(1)
+                # metricsServerReceiver.plot_throughput(1)
+                # metricsServerReceiver.plot_goodput(1)
+
+                # Sender
+                metricsServerSender.plot_simulation_time()
+                # metricsServerSender.plot_corrupted(1)
+                # metricsServerSender.plot_sentPacket(1)
+                # metricsServerSender.plot_retransmissions(1)
+                # metricsServerSender.plot_throughput(1)
+                # metricsServerSender.plot_goodput(1)
 
     except (KeyboardInterrupt, SystemExit):
         rdt.disconnect()
