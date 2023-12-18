@@ -76,7 +76,10 @@ class Packet:
     def split(self, packet):
 
         # split packet into respective variables
-        limits = [self.size_len, self.size_len+self.seq_num_len, self.size_len+self.seq_num_len+1, self.size_len+self.seq_num_len+self.checksum_len+1]
+        limits = [self.size_len, 
+                  self.size_len + self.seq_num_len, 
+                  self.size_len + self.seq_num_len + 1, 
+                  self.size_len + self.seq_num_len + 1 + self.checksum_len]
         
         size_str = packet[0 : limits[0]]
         seq_num_str = packet[limits[0] : limits[1]]
@@ -84,13 +87,13 @@ class Packet:
         checksum = packet[limits[2] : limits[3]]
         msg = packet[limits[3] : ]
 
-        return size_str, seq_num_str, checksum, ack_str, msg
+        return size_str, seq_num_str, ack_str, checksum, msg
 
 
     def corrupt(self, packet):
 
         # extract the fields
-        size_str, seq_num_str, checksum, ack_str, msg = self.split(packet)
+        size_str, seq_num_str, ack_str, checksum, msg = self.split(packet)
  
         # compute the checksum locally
         computed = hashlib.md5(str(size_str + seq_num_str + ack_str + msg).encode('utf-8')).hexdigest()
@@ -105,7 +108,7 @@ class Packet:
             raise RuntimeError('Cannot extract packet: it is corrupted')
 
         # extract the fields
-        size_str, seq_num_str, checksum, ack_str, msg = self.split(packet)
+        size_str, seq_num_str, ack_str, checksum, msg = self.split(packet)
         
         # save into object variables
         self.size = int(size_str)
@@ -124,7 +127,7 @@ class Packet:
         self.packet = packet
 
         # split packet into its components
-        return size_str, seq_num_str, checksum, ack_str, msg
+        return size_str, seq_num_str, ack_str, checksum, msg
     
 
     def get_ack(self):
@@ -183,7 +186,7 @@ class RDT:
                 break
 
             # Data received from above and inside window boundary
-            if (len(queue) > 0 and len(window) < self.window_len):
+            if ((len(queue) > 0) and (len(window) < self.window_len)):
                 
                 # create a packet, buffer it into window
                 msg = queue.pop(0)
